@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Check bash syntax
+        run: |
+          bash -n install.sh
+          bash -n app/scripts/agentzone_helper.sh
+
+      - name: Check Python syntax
+        run: python -m py_compile $(find app -name '*.py')
+
+      - name: Run tests
+        env:
+          BOT_TOKEN: "0:test_token_stub_for_ci_only_not_a_real_token"
+          ADMIN_ID: "123456789"
+        run: |
+          python -m pytest tests/ -c tests/pytest.ini -q --tb=short

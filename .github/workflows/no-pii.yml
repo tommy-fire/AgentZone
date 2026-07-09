@@ -1,0 +1,35 @@
+# PII / server / user data guard — runs on every push and PR.
+#
+# Implements the rule from AGENTS.md §2. Any push or pull request that
+# adds files containing real-looking personal, server, or user data
+# (bot tokens, real public IPs, real domains, real emails, private SSH
+# keys, etc.) is marked failed.
+#
+# Override a false positive per-line with the trailing comment:
+#     # no_pii_allow
+name: no-pii
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run PII guard (whole repo)
+        run: |
+          set -e
+          chmod +x scripts/check_no_pii.sh
+          bash scripts/check_no_pii.sh --all
