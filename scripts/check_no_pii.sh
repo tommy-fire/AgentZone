@@ -169,6 +169,14 @@ CONFIG_FILE_NAMES = {
     "Dockerfile",  # ARG / ENV assignments
 }
 
+# Packaging / documentation filenames that can legitimately appear as config
+# values (e.g. ``readme = "README.md"`` in pyproject.toml). These are file
+# paths, not hostnames, and must not be mistaken for bare domains.
+SAFE_CONFIG_FILENAME_RE = re.compile(
+    r"^[A-Za-z0-9_.-]+\.(?:md|rst|txt|toml|yaml|yml|ini|cfg|json)$",
+    re.IGNORECASE,
+)
+
 # Test directories: only LEAK_PATTERNS are checked here. URL / domain
 # checks are SKIPPED because tests legitimately contain "real-looking"
 # placeholder hostnames (SSRF fixtures, format validators, etc.) that
@@ -371,6 +379,8 @@ for rel in files:
             if not m:
                 continue
             value = m.group(1).strip().rstrip(",;")
+            if SAFE_CONFIG_FILENAME_RE.match(value):
+                continue
             # Embedded URL?
             for url in URL_RE.findall(value) + WS_RE.findall(value):
                 host = extract_host(url)
