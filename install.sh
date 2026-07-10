@@ -344,13 +344,20 @@ ExecStart=$APP_DIR/venv/bin/python -m agentzone.main
 Restart=always
 RestartSec=5
 PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectClock=true
+ProtectHostname=true
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
+RestrictNamespaces=true
 RestrictSUIDSGID=true
 LockPersonality=true
 SystemCallArchitectures=native
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=$APP_DIR/logs
 NoNewPrivileges=false
 
 [Install]

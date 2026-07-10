@@ -12,7 +12,7 @@ from agentzone.helper import helper_gateway
 from agentzone.models import GrantError, GrantInfo, NormalizedPublicKey
 
 _KEY_RE = re.compile(r"^(ssh-ed25519|ssh-rsa)\s+([A-Za-z0-9+/=]+)(?:\s+(.*))?$")
-_USERNAME_RE = re.compile(r"^[a-zA-Z0-9_-]{2,32}$")
+_USERNAME_RE = re.compile(r"^[a-z_][a-z0-9_-]{1,31}$")
 
 
 async def _run_helper(*args: str, stdin: str | None = None) -> tuple[int, dict[str, str], str]:
@@ -70,8 +70,8 @@ def normalize_public_key(raw: str) -> NormalizedPublicKey:
 
 def validate_password(password: str) -> str:
     password = (password or "").strip()
-    if len(password) < 8:
-        raise GrantError("Password must be at least 8 characters.")
+    if len(password) < 12:
+        raise GrantError("Password must be at least 12 characters.")
     if "\n" in password or "\r" in password:
         raise GrantError("Password must be a single line.")
     return password
@@ -81,7 +81,10 @@ def validate_password(password: str) -> str:
 def validate_username(username: str) -> str:
     username = (username or "").strip()
     if not _USERNAME_RE.match(username):
-        raise GrantError("Username must be 2-32 characters: letters, digits, '-', '_'.")
+        raise GrantError(
+            "Username must be 2-32 characters, start with a lowercase letter or '_', "
+            "and contain only lowercase letters, digits, '-', '_'."
+        )
     return username
 
 

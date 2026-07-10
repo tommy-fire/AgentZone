@@ -42,6 +42,12 @@ def test_helper_reads_password_from_stdin_and_unsets_it():
     assert "unset password" in text
 
 
+def test_helper_requires_stronger_local_sudo_passwords():
+    text = _read()
+    assert 'password must be at least 12 characters' in text
+    assert '${#password} -ge 12' in text
+
+
 def test_helper_hashes_password_before_chpasswd():
     text = _read()
     assert "openssl passwd -6 -stdin" in text

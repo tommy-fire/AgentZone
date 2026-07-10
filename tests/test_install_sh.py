@@ -190,6 +190,23 @@ def test_install_sh_bot_service_runs_the_packaged_agentzone_module():
     assert "ExecStart=$APP_DIR/venv/bin/python -m agentzone.main" in block
 
 
+def test_install_sh_bot_service_has_extra_filesystem_and_namespace_hardening():
+    text = _read()
+    idx = text.index("agentzone-bot.service <<EOF")
+    end = text.index("\nEOF\n", idx)
+    block = text[idx:end]
+    for required in (
+        "PrivateDevices=true",
+        "ProtectSystem=strict",
+        "ProtectHome=true",
+        "ProtectClock=true",
+        "ProtectHostname=true",
+        "RestrictNamespaces=true",
+        "ReadWritePaths=$APP_DIR/logs",
+    ):
+        assert required in block
+
+
 def test_install_sh_installs_rsync():
     """Regression: install.sh uses `rsync` to deploy app code, but rsync
     is not preinstalled on every minimal cloud/server image. Missing it

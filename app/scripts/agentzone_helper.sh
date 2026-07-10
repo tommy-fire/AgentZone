@@ -526,7 +526,7 @@ cmd_grant() {
   IFS= read -r password || fail "missing password on stdin (line 2)"
   printf '%s' "$pub" | grep -qE '^ssh-(ed25519|rsa) [A-Za-z0-9+/=]+( [^[:space:];&|`$]+)?$' \
     || fail "invalid public key (expected 'ssh-ed25519 <base64> [comment]' or 'ssh-rsa <base64> [comment]')"
-  [[ -n "$password" && ${#password} -ge 8 ]] || fail "password must be at least 8 characters"
+  [[ -n "$password" && ${#password} -ge 12 ]] || fail "password must be at least 12 characters"
   local tmp_pub
   tmp_pub="$(mktemp)"
   printf '%s\n' "$pub" > "$tmp_pub"

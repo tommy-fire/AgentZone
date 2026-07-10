@@ -29,7 +29,7 @@ def grant_username_prompt() -> str:
     return (
         "Step 1 / 4\n\n"
         "Send the Linux username for the new account.\n"
-        "Allowed: letters, digits, '-' and '_'."
+        "Allowed: start with a lowercase letter or '_', then lowercase letters, digits, '-' and '_'."
     )
 
 
@@ -46,7 +46,7 @@ def grant_pubkey_prompt() -> str:
 def grant_password_prompt() -> str:
     return (
         "Step 3 / 4\n\n"
-        "Send a password for this account (minimum 8 characters).\n\n"
+        "Send a password for this account (minimum 12 characters).\n\n"
         "⚠️ This password is <b>not</b> used for SSH login. SSH stays key-only. "
         "The password is only for local <code>sudo</code> on the server."
     )

@@ -11,8 +11,8 @@ in `app/scripts/agentzone_helper.sh` for the exact mechanisms; summary:
   `PasswordAuthentication no` is set globally by `install.sh`, and root
   password login is disabled as well (`PermitRootLogin prohibit-password`).
   The password an admin sets for a grant is a local credential used only
-  for `sudo` on the box — it is never a valid SSH login method, so it
-  cannot be brute-forced over the network.
+  for `sudo` on the box (minimum 12 characters) — it is never a valid SSH
+  login method, so it cannot be brute-forced over the network.
 - **One port per grant.** Every grant gets its own TCP port, opened in the
   firewall and bound to exactly one Linux user via sshd's
   `Match LocalPort <port>` + `AllowUsers`. The grant's public key is stored

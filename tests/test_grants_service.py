@@ -27,6 +27,8 @@ def test_normalize_public_key_rejects_multiline():
 def test_validate_password_rejects_short():
     with pytest.raises(grants.GrantError):
         grants.validate_password("short")
+    with pytest.raises(grants.GrantError):
+        grants.validate_password("12345678901")
 
 
 def test_validate_password_accepts_valid():
@@ -38,12 +40,15 @@ def test_validate_password_rejects_multiline():
         grants.validate_password("longenough\npassword")
 
 
-@pytest.mark.parametrize("name", ["agent1", "a_b-c", "AB", "x" * 32])
+@pytest.mark.parametrize("name", ["agent1", "a_b-c", "_svc", "x" * 32])
 def test_validate_username_accepts_valid(name):
     assert grants.validate_username(name) == name
 
 
-@pytest.mark.parametrize("name", ["", "a", "x" * 33, "bad user", "bad;user", "user`whoami`"])
+@pytest.mark.parametrize(
+    "name",
+    ["", "a", "x" * 33, "bad user", "bad;user", "user`whoami`", "AB", "1agent"],
+)
 def test_validate_username_rejects_invalid(name):
     with pytest.raises(grants.GrantError):
         grants.validate_username(name)

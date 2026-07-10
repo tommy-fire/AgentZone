@@ -73,7 +73,8 @@ sudo AGENTZONE_NONINTERACTIVE=true \
 
 The installer then:
 
-- Installs the bot as `agentzone-bot.service` (systemd, auto-restart).
+- Installs the bot as `agentzone-bot.service` (systemd, auto-restart,
+  filesystem and namespace sandboxing enabled).
 - Installs `agentzone-helper` as a **root-owned**, narrowly-scoped script
   the bot can invoke via a single sudoers rule — the bot process itself
   never runs as root.
@@ -85,8 +86,9 @@ The installer then:
 
 Open a chat with your bot and send `/start`. From the menu:
 
-1. **Grant access** — enter a username, the agent's SSH public key, a
-   password (used only for local `sudo`, not for SSH login), and a TTL.
+1. **Grant access** — enter a lowercase Linux username, the agent's SSH
+   public key, a password (used only for local `sudo`, not for SSH login;
+   minimum 12 characters), and a TTL.
 2. The bot creates the account and replies with a ready-to-use
    `ssh -p <port> <user>@<ip>` command — sent only to you.
 3. **Active grants** — see remaining time, revoke individually, or revoke
