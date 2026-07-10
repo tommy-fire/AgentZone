@@ -5,6 +5,7 @@ import logging
 from typing import Any
 
 from aiogram import F, Router, types
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -44,16 +45,30 @@ def _chat_id(event: types.Message | types.CallbackQuery) -> int:
     return event.chat.id
 
 
+async def _safe_edit_text(message: types.Message, text: str, **kwargs: Any) -> bool:
+    try:
+        await message.edit_text(text, **kwargs)
+        return True
+    except TelegramBadRequest as exc:
+        if "message is not modified" in str(exc).lower():
+            return False
+        raise
+
+
 async def _show_home(event: types.Message | types.CallbackQuery, state: FSMContext | None = None) -> None:
     if state is not None:
         await state.clear()
     if isinstance(event, types.CallbackQuery):
-        await event.message.edit_text(
+        changed = await _safe_edit_text(
+            event.message,
             messages.WELCOME_TEXT,
             parse_mode="HTML",
             reply_markup=keyboards.main_menu(),
         )
-        await event.answer()
+        if changed:
+            await event.answer()
+        else:
+            await event.answer("Already on the main menu")
         return
     await event.answer(messages.WELCOME_TEXT, parse_mode="HTML", reply_markup=keyboards.main_menu())
 
@@ -62,7 +77,8 @@ async def _render_grants_list(callback: types.CallbackQuery) -> None:
     try:
         items = await grants.list_grants()
     except grants.GrantError as exc:
-        await callback.message.edit_text(
+        await _safe_edit_text(
+            callback.message,
             f"❌ Could not read grants.\n<code>{exc}</code>",
             parse_mode="HTML",
             reply_markup=keyboards.back_to_menu(),
@@ -70,12 +86,16 @@ async def _render_grants_list(callback: types.CallbackQuery) -> None:
         await callback.answer()
         return
 
-    await callback.message.edit_text(
+    changed = await _safe_edit_text(
+        callback.message,
         messages.grants_overview_text(items),
         parse_mode="HTML",
         reply_markup=keyboards.grants_overview(items),
     )
-    await callback.answer()
+    if changed:
+        await callback.answer()
+    else:
+        await callback.answer("Grants list is already up to date")
 
 
 async def _finalize_grant(
@@ -143,7 +163,8 @@ async def cb_server_info(callback: types.CallbackQuery) -> None:
         active_count = sum(1 for item in items if item.active)
     except grants.GrantError:
         active_count = 0
-    await callback.message.edit_text(
+    changed = await _safe_edit_text(
+        callback.message,
         messages.server_info_text(
             host=settings.SERVER_IP,
             active_count=active_count,
@@ -153,7 +174,10 @@ async def cb_server_info(callback: types.CallbackQuery) -> None:
         parse_mode="HTML",
         reply_markup=keyboards.back_to_menu(),
     )
-    await callback.answer()
+    if changed:
+        await callback.answer()
+    else:
+        await callback.answer("Server info is already current")
 
 
 @router.callback_query(F.data == "grant:start")
@@ -161,8 +185,15 @@ async def cb_grant_start(callback: types.CallbackQuery, state: FSMContext) -> No
     if not _is_admin(callback.from_user.id):
         return await callback.answer()
     await state.set_state(GrantForm.waiting_username)
-    await callback.message.edit_text(messages.grant_username_prompt(), reply_markup=keyboards.cancel_only())
-    await callback.answer()
+    changed = await _safe_edit_text(
+        callback.message,
+        messages.grant_username_prompt(),
+        reply_markup=keyboards.cancel_only(),
+    )
+    if changed:
+        await callback.answer()
+    else:
+        await callback.answer("Grant flow is already open")
 
 
 @router.callback_query(F.data == "grant:cancel")
@@ -170,8 +201,15 @@ async def cb_grant_cancel(callback: types.CallbackQuery, state: FSMContext) -> N
     if not _is_admin(callback.from_user.id):
         return await callback.answer()
     await state.clear()
-    await callback.message.edit_text(messages.CANCELLED_TEXT, reply_markup=keyboards.main_menu())
-    await callback.answer()
+    changed = await _safe_edit_text(
+        callback.message,
+        messages.CANCELLED_TEXT,
+        reply_markup=keyboards.main_menu(),
+    )
+    if changed:
+        await callback.answer()
+    else:
+        await callback.answer("Already cancelled")
 
 
 @router.message(GrantForm.waiting_username)
@@ -226,12 +264,18 @@ async def cb_ttl_choice(callback: types.CallbackQuery, state: FSMContext) -> Non
     choice = callback.data.split(":", 1)[1]
     if choice == "custom":
         await state.set_state(GrantForm.waiting_ttl_custom)
-        await callback.message.edit_text(messages.grant_custom_ttl_prompt(settings.AGENTZONE_MAX_TTL_MINUTES))
-        await callback.answer()
+        changed = await _safe_edit_text(
+            callback.message,
+            messages.grant_custom_ttl_prompt(settings.AGENTZONE_MAX_TTL_MINUTES),
+        )
+        if changed:
+            await callback.answer()
+        else:
+            await callback.answer("Send the custom TTL in minutes")
         return
 
     minutes = int(choice)
-    await callback.message.edit_text(messages.PROCESSING_TEXT)
+    await _safe_edit_text(callback.message, messages.PROCESSING_TEXT)
     await _finalize_grant(callback, state, ttl_minutes=(minutes or None))
 
 
@@ -271,7 +315,11 @@ async def cb_revoke_one(callback: types.CallbackQuery) -> None:
     except grants.GrantError as exc:
         await callback.answer(f"Failed: {exc}", show_alert=True)
         return
-    await callback.message.edit_text(messages.ONE_REVOKED_TEXT, reply_markup=keyboards.back_to_menu())
+    await _safe_edit_text(
+        callback.message,
+        messages.ONE_REVOKED_TEXT,
+        reply_markup=keyboards.back_to_menu(),
+    )
     await callback.answer("Grant revoked")
 
 
@@ -279,11 +327,15 @@ async def cb_revoke_one(callback: types.CallbackQuery) -> None:
 async def cb_revoke_all_prompt(callback: types.CallbackQuery) -> None:
     if not _is_admin(callback.from_user.id):
         return await callback.answer()
-    await callback.message.edit_text(
+    changed = await _safe_edit_text(
+        callback.message,
         messages.revoke_all_warning_text(),
         reply_markup=keyboards.revoke_all_confirm(),
     )
-    await callback.answer()
+    if changed:
+        await callback.answer()
+    else:
+        await callback.answer("Confirmation is already shown")
 
 
 @router.callback_query(F.data == "revoke:all:confirm")
@@ -295,5 +347,9 @@ async def cb_revoke_all_confirm(callback: types.CallbackQuery) -> None:
     except grants.GrantError as exc:
         await callback.answer(f"Failed: {exc}", show_alert=True)
         return
-    await callback.message.edit_text(messages.ALL_REVOKED_TEXT, reply_markup=keyboards.main_menu())
+    await _safe_edit_text(
+        callback.message,
+        messages.ALL_REVOKED_TEXT,
+        reply_markup=keyboards.main_menu(),
+    )
     await callback.answer("All grants revoked")

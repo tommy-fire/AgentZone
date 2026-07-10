@@ -72,6 +72,13 @@ def test_every_handler_checks_is_admin():
 
 
 
+def test_handlers_ignore_telegram_message_not_modified_errors_on_safe_edits():
+    source = inspect.getsource(handlers._safe_edit_text)
+    assert "TelegramBadRequest" in source
+    assert "message is not modified" in source.lower()
+
+
+
 def test_is_admin_compares_against_settings_admin_id():
     source = inspect.getsource(handlers._is_admin)
     assert "settings.ADMIN_ID" in source
