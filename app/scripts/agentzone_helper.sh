@@ -53,6 +53,11 @@
 #   silently losing a state change.
 set -Eeuo pipefail
 
+# Run with an explicit admin-grade PATH so child tools invoked by the helper
+# (notably UFW probing `iptables`) are resolvable even when the helper is
+# launched from a minimal systemd/sudo environment.
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
 ENV_FILE="${AGENTZONE_ENV_FILE:-/opt/agentzone/config/.env}"
 STATE_DIR="${AGENTZONE_STATE_DIR:-/var/lib/agentzone}"
 STATE_FILE="$STATE_DIR/grants.json"

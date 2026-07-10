@@ -21,6 +21,11 @@ def test_helper_has_valid_bash_syntax():
     assert result.returncode == 0, result.stderr
 
 
+def test_helper_sets_an_explicit_admin_tool_path():
+    text = _read()
+    assert "export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" in text
+
+
 def test_helper_requires_root_for_every_command():
     text = _read()
     for fn in ("cmd_grant", "cmd_revoke", "cmd_status", "cmd_expire_check", "cmd_purge_journal"):
