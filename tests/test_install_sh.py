@@ -22,10 +22,16 @@ def test_install_sh_requires_root():
     assert 'EUID -eq 0' in text
 
 
-def test_install_sh_validates_bot_token_format():
+def test_install_sh_validates_bot_token_format_without_hardcoding_token_length():
+    """Regression: BotFather token suffix length has changed over time.
+    The installer must validate the general '<numeric-id>:<token>' shape
+    without pinning the auth-hash part to one exact character count."""
     text = _read()
     assert "validate_bot_token" in text
-    assert "^[0-9]+:[A-Za-z0-9_-]{35}$" in text
+    assert "<numeric-id>:<token>" in text
+    assert "[[:space:]]" in text
+    assert "A-Za-z0-9_-" in text
+    assert "{35}" not in text
 
 
 def test_install_sh_validates_admin_id_is_numeric_only():
@@ -40,7 +46,7 @@ def test_install_sh_validates_admin_id_is_numeric_only():
 def test_install_sh_auto_detects_public_ip():
     text = _read()
     assert "api.ipify.org" in text
-    assert "ifconfig.me" in text
+    assert "ifconfig.me/ip" in text
 
 
 def test_install_sh_never_asks_for_a_domain():

@@ -35,6 +35,7 @@ Full design rationale: [`SECURITY.md`](SECURITY.md).
 Fresh Ubuntu 22.04+/Debian 12+ server, run as root:
 
 ```bash
+apt-get update && apt-get install -y git
 git clone <this-repo-url> agentzone
 cd agentzone
 sudo bash install.sh

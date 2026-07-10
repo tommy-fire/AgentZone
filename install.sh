@@ -28,8 +28,12 @@ if [[ -r /etc/os-release ]]; then . /etc/os-release; fi
 # directive injection, etc).
 # ---------------------------------------------------------------------------
 validate_bot_token(){
-  local value="$1"
-  [[ "$value" =~ ^[0-9]+:[A-Za-z0-9_-]{35}$ ]] || fail "Invalid BOT_TOKEN format (expected '<id>:<35 chars>')"
+  local value="$1" left right
+  [[ "$value" =~ [[:space:]] ]] && fail "Invalid BOT_TOKEN format (must not contain spaces)"
+  left="${value%%:*}"
+  right="${value#*:}"
+  [[ "$value" == *:* && "$left" =~ ^[0-9]+$ && -n "$right" && "$right" =~ ^[A-Za-z0-9_-]+$ ]] \
+    || fail "Invalid BOT_TOKEN format (expected '<numeric-id>:<token>')"
 }
 
 validate_admin_id(){
@@ -71,7 +75,7 @@ PORT_RANGE_END="20100"
 validate_port_range "$PORT_RANGE_START" "$PORT_RANGE_END"
 
 log "Detecting public server IP"
-SERVER_IP="$(curl -4fsS --max-time 5 https://api.ipify.org 2>/dev/null || curl -4fsS --max-time 5 https://ifconfig.me 2>/dev/null || true)"
+SERVER_IP="$(curl -4fsS --max-time 5 https://api.ipify.org 2>/dev/null || curl -4fsS --max-time 5 https://ifconfig.me/ip 2>/dev/null || true)"
 if [[ -z "$SERVER_IP" ]]; then
   warn "Could not auto-detect the public IP. Enter it manually."
   read -rp "Public server IPv4: " SERVER_IP
