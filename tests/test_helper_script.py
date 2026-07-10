@@ -82,6 +82,36 @@ def test_helper_one_port_per_grant():
     assert "AllowUsers" in text
 
 
+def test_helper_skips_ports_already_listening_on_the_host():
+    """Regression: the helper must not hand out a port that is already
+    occupied by some unrelated local service, even if AgentZone itself has
+    never allocated it before."""
+    text = _read()
+    assert "port_listening_locally" in text
+    assert "/proc/net/tcp" in text
+    assert "/proc/net/tcp6" in text
+    alloc_start = text.index("allocate_port(){") if "allocate_port(){" in text else text.index("allocate_port() {")
+    alloc_end = text.index("\n}\n", alloc_start)
+    block = text[alloc_start:alloc_end]
+    assert 'port_listening_locally "$p"' in block
+
+
+def test_helper_verifies_new_grant_port_serves_ssh_before_reporting_success():
+    """A grant must fail fast if sshd never actually starts speaking SSH on
+    the newly assigned port; otherwise the bot can report success while the
+    connection is dead from the outside."""
+    text = _read()
+    assert "wait_for_local_ssh_banner" in text
+    assert "rollback_uncommitted_grant" in text
+    start = text.index("cmd_grant() {")
+    end = text.index("\n}\n", start)
+    block = text[start:end]
+    write_idx = block.index("write_grant_sshd_block")
+    verify_idx = block.index("wait_for_local_ssh_banner")
+    ufw_idx = block.index("ufw_open")
+    assert write_idx < verify_idx < ufw_idx
+
+
 def test_helper_revoke_removes_sshd_block_firewall_user_and_sudoers():
     text = _read()
     start = text.index("revoke_one_grant(){")

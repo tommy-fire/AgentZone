@@ -224,16 +224,46 @@ for v in g.values():
 ' 2>/dev/null || true
 }
 
+port_listening_locally(){
+  local port="$1"
+  PORT="$port" python3 - <<'PY'
+import os, sys
+port = int(os.environ["PORT"])
+port_hex = f"{port:04X}"
+for path in ("/proc/net/tcp", "/proc/net/tcp6"):
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+            next(fh, None)
+            for line in fh:
+                parts = line.split()
+                if len(parts) < 4:
+                    continue
+                state = parts[3]
+                if state != "0A":
+                    continue
+                local_addr = parts[1]
+                try:
+                    _, local_port = local_addr.rsplit(":", 1)
+                except ValueError:
+                    continue
+                if local_port.upper() == port_hex:
+                    sys.exit(0)
+    except FileNotFoundError:
+        pass
+sys.exit(1)
+PY
+}
+
 allocate_port(){
   local used p
   used="$(used_ports)"
   for ((p = PORT_RANGE_START; p <= PORT_RANGE_END; p++)); do
-    if ! grep -qxF "$p" <<<"$used"; then
+    if ! grep -qxF "$p" <<<"$used" && ! port_listening_locally "$p"; then
       printf '%s' "$p"
       return 0
     fi
   done
-  fail "no free port in range ${PORT_RANGE_START}-${PORT_RANGE_END}"
+  fail "no free port in range ${PORT_RANGE_START}-${PORT_RANGE_END} (all allocated or already in use by another local service)"
 }
 
 reload_sshd() {
@@ -268,6 +298,30 @@ fingerprint_for_key() {
   printf '%s\n' "$key_text" > "$tmp"
   ssh-keygen -lf "$tmp" 2>/dev/null | awk '{print $2}'
   rm -f "$tmp"
+}
+
+wait_for_local_ssh_banner(){
+  local port="$1" timeout_sec="${2:-8}"
+  PORT="$port" TIMEOUT_SEC="$timeout_sec" python3 - <<'PY'
+import os, socket, sys, time
+port = int(os.environ["PORT"])
+timeout = float(os.environ["TIMEOUT_SEC"])
+deadline = time.time() + timeout
+last_error = "timeout waiting for SSH banner"
+while time.time() < deadline:
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=1.5) as sock:
+            sock.settimeout(1.5)
+            data = sock.recv(64)
+            if data.startswith(b"SSH-"):
+                sys.exit(0)
+            last_error = f"unexpected response on port {port}: {data!r}"
+    except OSError as exc:
+        last_error = str(exc)
+    time.sleep(0.25)
+print(last_error, file=sys.stderr)
+sys.exit(1)
+PY
 }
 
 ufw_open(){ command -v ufw >/dev/null 2>&1 && ufw allow "$1/tcp" comment "agentzone-$2" >/dev/null 2>&1 || true; }
@@ -354,6 +408,20 @@ remove_grant_sshd_block(){
   local grant_id="$1"
   rm -f "$(sshd_path_for_grant "$grant_id")"
   reload_sshd
+}
+
+rollback_uncommitted_grant(){
+  local grant_id="$1" user="$2" port="$3"
+  remove_grant_sshd_block "$grant_id"
+  [[ -n "$port" ]] && ufw_close "$port" "$grant_id"
+  rm -f "$(sudoers_path_for_grant "$grant_id")"
+  kill_user_sessions "$user"
+  if id "$user" >/dev/null 2>&1; then
+    userdel -r "$user" >/dev/null 2>&1 || {
+      passwd -l "$user" >/dev/null 2>&1 || true
+      usermod -s /usr/sbin/nologin "$user" >/dev/null 2>&1 || true
+    }
+  fi
 }
 
 # ---------------------------------------------------------------------------
@@ -485,6 +553,10 @@ EOF
   visudo -cf "$sudoers_path" >/dev/null || { rm -f "$sudoers_path"; fail "visudo rejected generated sudoers file"; }
 
   write_grant_sshd_block "$grant_id" "$user" "$port"
+  if ! wait_for_local_ssh_banner "$port" 8; then
+    rollback_uncommitted_grant "$grant_id" "$user" "$port"
+    fail "grant port $port did not present an SSH banner after reload (likely ssh.socket/socket activation is still intercepting ports, sshd did not bind the new port, or the port is occupied by another local service)"
+  fi
   ufw_open "$port" "$grant_id"
 
   local expires=""
