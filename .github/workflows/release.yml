@@ -1,0 +1,36 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  github-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract release notes from CHANGELOG.md
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          awk -v tag="$tag" '
+            $0 ~ "^## " tag "([[:space:]]|$| —)" {capture=1}
+            /^## / && capture && $0 !~ "^## " tag "([[:space:]]|$| —)" {exit}
+            capture {print}
+          ' CHANGELOG.md > RELEASE_BODY.md
+          test -s RELEASE_BODY.md
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: RELEASE_BODY.md
+          generate_release_notes: true
+          append_body: true

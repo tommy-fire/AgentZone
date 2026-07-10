@@ -1,5 +1,9 @@
 # AgentZone
 
+![CI](https://github.com/tommy-fire/AgentZone/actions/workflows/ci.yml/badge.svg)
+![no-pii](https://github.com/tommy-fire/AgentZone/actions/workflows/no-pii.yml/badge.svg)
+![GitHub Release](https://img.shields.io/github/v/release/tommy-fire/AgentZone)
+
 A tiny, self-hosted Telegram bot that grants and revokes **temporary SSH
 access** to a server — built for handing a scoped, time-boxed shell to an
 AI coding agent without leaving anything behind once the work is done.
