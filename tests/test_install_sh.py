@@ -49,6 +49,35 @@ def test_install_sh_auto_detects_public_ip():
     assert "ifconfig.me/ip" in text
 
 
+def test_install_sh_bootstraps_curl_before_public_ip_detection():
+    """Regression: on some minimal cloud images `curl` is missing on the
+    very first login. The installer uses curl to auto-detect the public IP,
+    so it must bootstrap curl BEFORE that step instead of assuming it is
+    already available."""
+    text = _read()
+    assert "ensure_bootstrap_command" in text
+    bootstrap_idx = text.index('ensure_bootstrap_command curl curl')
+    detect_idx = text.index('SERVER_IP="$(curl -4fsS --max-time 5 https://api.ipify.org')
+    assert bootstrap_idx < detect_idx
+
+
+def test_install_sh_supports_server_ip_override_in_noninteractive_mode():
+    """If IP auto-detection fails in AGENTZONE_NONINTERACTIVE mode, the
+    installer cannot safely prompt on stdin. It must support an explicit
+    AGENTZONE_SERVER_IP override and fail clearly when that is missing."""
+    text = _read()
+    assert 'SERVER_IP="${AGENTZONE_SERVER_IP:-}"' in text
+    assert "Set AGENTZONE_SERVER_IP and re-run" in text
+
+
+def test_install_sh_validates_ipv4_octets_not_just_shape():
+    text = _read()
+    assert "validate_ipv4" in text
+    assert 'IFS=' in text and "read -r o1 o2 o3 o4" in text
+    assert '"$octet" -ge 0' in text
+    assert '"$octet" -le 255' in text
+
+
 def test_install_sh_never_asks_for_a_domain():
     text = _read()
     # No domain / DOMAIN prompt anywhere — IP-only by design.
@@ -117,7 +146,8 @@ def test_install_sh_installs_rsync():
     used to fail deep inside the script with a confusing bare
     "No such file or directory" at the rsync call site."""
     text = _read()
-    idx = text.index("apt-get install -y -qq")
+    system_packages_idx = text.index('log "Installing system packages"')
+    idx = text.index("apt-get install -y -qq python3", system_packages_idx)
     end = text.index("\n", idx)
     line = text[idx:end]
     assert "rsync" in line
@@ -130,7 +160,8 @@ def test_install_sh_installs_passwd_and_procps_for_the_helper():
     """passwd provides chpasswd/chage/useradd/userdel, procps provides
     pkill -- both used by agentzone_helper.sh when granting/revoking."""
     text = _read()
-    idx = text.index("apt-get install -y -qq")
+    system_packages_idx = text.index('log "Installing system packages"')
+    idx = text.index("apt-get install -y -qq python3", system_packages_idx)
     end = text.index("\n", idx)
     line = text[idx:end]
     assert "passwd" in line

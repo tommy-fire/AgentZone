@@ -47,6 +47,25 @@ validate_port_range(){
   [[ "$start" -ge 1024 && "$end" -le 65535 && "$start" -lt "$end" ]] || fail "Invalid port range: $start-$end"
 }
 
+validate_ipv4(){
+  local value="$1" o1 o2 o3 o4 octet
+  [[ "$value" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || fail "Invalid IPv4: $value"
+  IFS='.' read -r o1 o2 o3 o4 <<< "$value"
+  for octet in "$o1" "$o2" "$o3" "$o4"; do
+    [[ "$octet" =~ ^[0-9]{1,3}$ && "$octet" -ge 0 && "$octet" -le 255 ]] || fail "Invalid IPv4: $value"
+  done
+}
+
+ensure_bootstrap_command(){
+  local bin="$1" package="$2"
+  command -v "$bin" >/dev/null 2>&1 && return 0
+  log "Bootstrapping missing command '$bin' via apt ($package)"
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update -qq
+  apt-get install -y -qq "$package" >/dev/null
+  command -v "$bin" >/dev/null 2>&1 || fail "Required bootstrap command '$bin' is unavailable even after installing package '$package'"
+}
+
 echo
 log "AgentZone installer"
 echo
@@ -56,6 +75,7 @@ if [[ "$AGENTZONE_NONINTERACTIVE" =~ ^([Tt]rue|1|[Yy]es)$ ]]; then
   BOT_TOKEN="${AGENTZONE_BOT_TOKEN:-}"
   ADMIN_ID="${AGENTZONE_ADMIN_ID:-}"
   SSH_ADMIN_PORT="${AGENTZONE_SSH_ADMIN_PORT:-22}"
+  SERVER_IP="${AGENTZONE_SERVER_IP:-}"
   [[ -n "$BOT_TOKEN" ]] || fail "AGENTZONE_BOT_TOKEN is required"
   [[ -n "$ADMIN_ID" ]] || fail "AGENTZONE_ADMIN_ID is required"
 else
@@ -74,13 +94,22 @@ PORT_RANGE_START="20000"
 PORT_RANGE_END="20100"
 validate_port_range "$PORT_RANGE_START" "$PORT_RANGE_END"
 
-log "Detecting public server IP"
-SERVER_IP="$(curl -4fsS --max-time 5 https://api.ipify.org 2>/dev/null || curl -4fsS --max-time 5 https://ifconfig.me/ip 2>/dev/null || true)"
-if [[ -z "$SERVER_IP" ]]; then
-  warn "Could not auto-detect the public IP. Enter it manually."
-  read -rp "Public server IPv4: " SERVER_IP
+if [[ -n "${SERVER_IP:-}" ]]; then
+  validate_ipv4 "$SERVER_IP"
+  log "Using public IP from AGENTZONE_SERVER_IP"
+else
+  ensure_bootstrap_command curl curl
+  log "Detecting public server IP"
+  SERVER_IP="$(curl -4fsS --max-time 5 https://api.ipify.org 2>/dev/null || curl -4fsS --max-time 5 https://ifconfig.me/ip 2>/dev/null || true)"
+  if [[ -z "$SERVER_IP" ]]; then
+    if [[ "$AGENTZONE_NONINTERACTIVE" =~ ^([Tt]rue|1|[Yy]es)$ ]]; then
+      fail "Could not auto-detect the public IP. Set AGENTZONE_SERVER_IP and re-run."
+    fi
+    warn "Could not auto-detect the public IP. Enter it manually."
+    read -rp "Public server IPv4: " SERVER_IP
+  fi
+  validate_ipv4 "$SERVER_IP"
 fi
-[[ "$SERVER_IP" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || fail "Invalid detected/entered IPv4: $SERVER_IP"
 log "Public IP: $SERVER_IP (shown only to you, in the bot's private chat)"
 
 export DEBIAN_FRONTEND=noninteractive

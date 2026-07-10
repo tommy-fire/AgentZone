@@ -36,7 +36,7 @@ Fresh Ubuntu 22.04+/Debian 12+ server, run as root:
 
 ```bash
 apt-get update && apt-get install -y git
-git clone <this-repo-url> agentzone
+git clone https://github.com/tommy-fire/AgentZone.git agentzone
 cd agentzone
 sudo bash install.sh
 ```
@@ -48,8 +48,23 @@ You'll be asked for:
 3. **The SSH port you're currently connected on** — so the installer
    knows which port to keep open for you; it never touches this port.
 
-The public IP is auto-detected. No domain is ever requested — AgentZone
-has no reason to run anything a domain would front.
+The public IP is auto-detected. If your server image does not have `curl`
+yet, the installer bootstraps it first. If auto-detection still fails, the
+installer asks for the IPv4 manually (or, in non-interactive mode, you can
+set `AGENTZONE_SERVER_IP`). No domain is ever requested — AgentZone has no
+reason to run anything a domain would front.
+
+For automated provisioning / cloud-init, a fully non-interactive install
+looks like this:
+
+```bash
+sudo AGENTZONE_NONINTERACTIVE=true \
+  AGENTZONE_BOT_TOKEN='123456789:replace-me' \
+  AGENTZONE_ADMIN_ID='123456789' \
+  AGENTZONE_SSH_ADMIN_PORT='22' \
+  AGENTZONE_SERVER_IP='203.0.113.10' \
+  bash install.sh
+```
 
 The installer then:
 
