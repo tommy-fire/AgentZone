@@ -146,6 +146,13 @@ def test_install_sh_only_opens_admin_ssh_port_statically():
     assert "for" not in text[text.index("ufw allow"):text.index("ufw --force enable")]
 
 
+def test_install_sh_fails_if_ufw_is_not_active_after_enable():
+    text = _read()
+    assert 'ufw --force enable' in text
+    assert "UFW is not active after enable" in text
+    assert "grep -q '^Status: active'" in text
+
+
 def test_install_sh_installs_helper_as_root_owned_and_not_world_writable():
     text = _read()
     assert "install -o root -g root -m 0750" in text

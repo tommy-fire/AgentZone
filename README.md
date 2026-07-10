@@ -79,7 +79,9 @@ The installer then:
   the bot can invoke via a single sudoers rule — the bot process itself
   never runs as root.
 - Hardens sshd (key-only SSH, password auth disabled globally, root password login disabled).
-- Enables UFW, opening only your current admin SSH port.
+- Enables UFW, opening only your current admin SSH port. If UFW cannot be
+  enabled cleanly, the installer now stops immediately instead of leaving a
+  half-working deployment.
 - Installs a systemd timer that sweeps expired grants every minute.
 
 ## Use

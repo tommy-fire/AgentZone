@@ -137,11 +137,12 @@ def test_helper_managed_authorized_keys_are_readable_by_sshd_but_not_writable_by
 def test_helper_fails_the_grant_if_opening_the_firewall_rule_fails():
     text = _read()
     assert "ufw_rule_present" in text
+    assert 'ufw did not report an allow rule for $port/tcp after insertion attempt' in text
     start = text.index("cmd_grant() {")
     end = text.index("\n}\n", start)
     block = text[start:end]
     assert 'if ! ufw_open "$port" "$grant_id"; then' in block
-    assert 'fail "failed to open firewall rule for grant port $port"' in block
+    assert 'fail "failed to open firewall rule for grant port $port (see preceding ufw stderr for the exact cause)"' in block
 
 
 def test_helper_skips_ports_already_listening_on_the_host():

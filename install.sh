@@ -318,8 +318,9 @@ else
 fi
 
 log "Configuring firewall (UFW)"
-ufw allow "$SSH_ADMIN_PORT/tcp" comment "agentzone-admin-ssh" >/dev/null 2>&1 || true
-ufw --force enable >/dev/null 2>&1 || true
+ufw allow "$SSH_ADMIN_PORT/tcp" comment "agentzone-admin-ssh" >/dev/null 2>&1 || fail "Could not add the admin SSH rule to UFW"
+ufw --force enable >/dev/null 2>&1 || fail "Could not enable UFW"
+ufw status 2>/dev/null | grep -q '^Status: active' || fail "UFW is not active after enable — AgentZone requires a working firewall backend"
 # NOTE: per-grant ports are opened/closed dynamically by agentzone_helper.sh
 # only while a grant is active — see cmd_grant/revoke_one_grant. No other
 # inbound port is ever opened by this installer: there is no web panel, no

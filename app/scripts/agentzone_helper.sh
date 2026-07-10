@@ -354,9 +354,21 @@ PY
 
 ufw_rule_present(){ command -v ufw >/dev/null 2>&1 && ufw status numbered 2>/dev/null | grep -qF "$1/tcp"; }
 ufw_open(){
-  command -v ufw >/dev/null 2>&1 || return 1
-  ufw allow "$1/tcp" comment "agentzone-$2" >/dev/null 2>&1 || return 1
-  ufw_rule_present "$1"
+  command -v ufw >/dev/null 2>&1 || { echo "ufw command not found" >&2; return 1; }
+  local port="$1" grant_id="$2" tmp
+  tmp="$(mktemp)"
+  if ! ufw allow "$port/tcp" comment "agentzone-$grant_id" >"$tmp" 2>&1; then
+    cat "$tmp" >&2 || true
+    rm -f "$tmp"
+    return 1
+  fi
+  if ! ufw_rule_present "$port"; then
+    echo "ufw did not report an allow rule for $port/tcp after insertion attempt" >&2
+    cat "$tmp" >&2 || true
+    rm -f "$tmp"
+    return 1
+  fi
+  rm -f "$tmp"
 }
 ufw_close(){ command -v ufw >/dev/null 2>&1 && ufw delete allow "$1/tcp" >/dev/null 2>&1 || true; }
 
@@ -597,7 +609,7 @@ EOF
   fi
   if ! ufw_open "$port" "$grant_id"; then
     rollback_uncommitted_grant "$grant_id" "$user" "$port"
-    fail "failed to open firewall rule for grant port $port"
+    fail "failed to open firewall rule for grant port $port (see preceding ufw stderr for the exact cause)"
   fi
 
   local expires=""
