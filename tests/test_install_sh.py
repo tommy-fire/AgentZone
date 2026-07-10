@@ -78,6 +78,36 @@ def test_install_sh_validates_ipv4_octets_not_just_shape():
     assert '"$octet" -le 255' in text
 
 
+def test_install_sh_validates_admin_ssh_public_key_format_with_ssh_keygen():
+    text = _read()
+    assert "validate_ssh_public_key" in text
+    assert "ssh-ed25519 <base64> [comment]" in text
+    assert "ssh-keygen -lf" in text
+
+
+def test_install_sh_supports_admin_pubkey_env_for_noninteractive_installs():
+    text = _read()
+    assert 'ADMIN_SSH_PUBLIC_KEY="${AGENTZONE_ADMIN_SSH_PUBLIC_KEY:-}"' in text
+
+
+def test_install_sh_refuses_to_disable_password_auth_without_any_admin_key_path():
+    """Live regression: on a fresh password-only server, disabling
+    PasswordAuthentication without first ensuring an admin SSH key exists
+    locks the owner out on their next connection. The installer must stop
+    with a clear error in that situation."""
+    text = _read()
+    assert "ensure_admin_key_access" in text
+    assert "Refusing to disable PasswordAuthentication" in text
+    assert "AGENTZONE_ADMIN_SSH_PUBLIC_KEY" in text
+
+
+def test_install_sh_hardening_calls_admin_key_guard_before_writing_key_only_sshd_config():
+    text = _read()
+    guard_idx = text.index("ensure_admin_key_access")
+    hardening_idx = text.index("PasswordAuthentication no")
+    assert guard_idx < hardening_idx
+
+
 def test_install_sh_never_asks_for_a_domain():
     text = _read()
     # No domain / DOMAIN prompt anywhere — IP-only by design.

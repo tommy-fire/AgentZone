@@ -56,6 +56,16 @@ validate_ipv4(){
   done
 }
 
+validate_ssh_public_key(){
+  local value="$1" tmp
+  printf '%s' "$value" | grep -qE '^ssh-(ed25519|rsa) [A-Za-z0-9+/=]+( [^[:space:];&|`$]+)?$' \
+    || fail "Invalid admin SSH public key (expected 'ssh-ed25519 <base64> [comment]' or 'ssh-rsa <base64> [comment]')"
+  tmp="$(mktemp)"
+  printf '%s\n' "$value" > "$tmp"
+  ssh-keygen -lf "$tmp" >/dev/null 2>&1 || { rm -f "$tmp"; fail "ssh-keygen rejected the admin SSH public key"; }
+  rm -f "$tmp"
+}
+
 ensure_bootstrap_command(){
   local bin="$1" package="$2"
   command -v "$bin" >/dev/null 2>&1 && return 0
@@ -64,6 +74,65 @@ ensure_bootstrap_command(){
   apt-get update -qq
   apt-get install -y -qq "$package" >/dev/null
   command -v "$bin" >/dev/null 2>&1 || fail "Required bootstrap command '$bin' is unavailable even after installing package '$package'"
+}
+
+detect_admin_login_user(){
+  if [[ -n "${SUDO_USER:-}" && "${SUDO_USER:-}" != "root" ]]; then
+    printf '%s' "$SUDO_USER"
+    return
+  fi
+  if [[ -n "${LOGNAME:-}" && "${LOGNAME:-}" != "root" ]]; then
+    printf '%s' "$LOGNAME"
+    return
+  fi
+  printf 'root'
+}
+
+has_existing_admin_authorized_key(){
+  local path="$1"
+  [[ -r "$path" ]] || return 1
+  grep -qE '^ssh-(ed25519|rsa) [A-Za-z0-9+/=]+( [^[:space:];&|`$]+)?$' "$path"
+}
+
+install_admin_authorized_key(){
+  local user="$1" home="$2" key="$3" ak
+  ak="$home/.ssh/authorized_keys"
+  install -d -m 700 -o "$user" -g "$user" "$home/.ssh"
+  touch "$ak"
+  chown "$user:$user" "$ak"
+  chmod 600 "$ak"
+  grep -qxF "$key" "$ak" 2>/dev/null || printf '%s\n' "$key" >> "$ak"
+}
+
+ensure_admin_key_access(){
+  local user home ak
+  user="$(detect_admin_login_user)"
+  home="$(getent passwd "$user" | cut -d: -f6)"
+  [[ -n "$home" ]] || fail "Could not determine home directory for admin login user '$user'"
+  ak="$home/.ssh/authorized_keys"
+
+  if [[ -n "${ADMIN_SSH_PUBLIC_KEY:-}" ]]; then
+    validate_ssh_public_key "$ADMIN_SSH_PUBLIC_KEY"
+    install_admin_authorized_key "$user" "$home" "$ADMIN_SSH_PUBLIC_KEY"
+    log "Installed/verified admin SSH public key for $user"
+    return 0
+  fi
+
+  if has_existing_admin_authorized_key "$ak"; then
+    log "Existing admin SSH key access detected for $user"
+    return 0
+  fi
+
+  if [[ "$AGENTZONE_NONINTERACTIVE" =~ ^([Tt]rue|1|[Yy]es)$ ]]; then
+    fail "Refusing to disable PasswordAuthentication: no existing SSH key found for admin user '$user'. Set AGENTZONE_ADMIN_SSH_PUBLIC_KEY and re-run."
+  fi
+
+  warn "No existing SSH public key found for admin user '$user'."
+  read -rp "Paste your admin SSH public key to preserve future SSH access: " ADMIN_SSH_PUBLIC_KEY
+  [[ -n "$ADMIN_SSH_PUBLIC_KEY" ]] || fail "Admin SSH public key is required before PasswordAuthentication can be disabled safely"
+  validate_ssh_public_key "$ADMIN_SSH_PUBLIC_KEY"
+  install_admin_authorized_key "$user" "$home" "$ADMIN_SSH_PUBLIC_KEY"
+  log "Installed admin SSH public key for $user"
 }
 
 echo
@@ -76,6 +145,7 @@ if [[ "$AGENTZONE_NONINTERACTIVE" =~ ^([Tt]rue|1|[Yy]es)$ ]]; then
   ADMIN_ID="${AGENTZONE_ADMIN_ID:-}"
   SSH_ADMIN_PORT="${AGENTZONE_SSH_ADMIN_PORT:-22}"
   SERVER_IP="${AGENTZONE_SERVER_IP:-}"
+  ADMIN_SSH_PUBLIC_KEY="${AGENTZONE_ADMIN_SSH_PUBLIC_KEY:-}"
   [[ -n "$BOT_TOKEN" ]] || fail "AGENTZONE_BOT_TOKEN is required"
   [[ -n "$ADMIN_ID" ]] || fail "AGENTZONE_ADMIN_ID is required"
 else
@@ -187,18 +257,17 @@ visudo -cf /etc/sudoers.d/agentzone >/dev/null
 # ---------------------------------------------------------------------------
 # SSH baseline hardening.
 #
-# PasswordAuthentication is disabled GLOBALLY. This is safe to do
-# immediately (rather than asking the admin to test a key login first, as
-# some installers do) because:
-#   - install.sh does not touch the admin's own key-based session;
-#   - if the admin is currently using password auth to reach this box,
-#     they were prompted above to confirm their current SSH port, and this
-#     script does not close it — only newly-granted agent ports get their
-#     own Match block.
-# Per-grant blocks (see agentzone_helper.sh) add AllowUsers scoped to a
-# single LocalPort, so agent accounts can never authenticate on the admin's
-# port and vice versa.
+# PasswordAuthentication is disabled GLOBALLY, but only AFTER we verify the
+# admin still has a valid public-key path back in. A fresh server that was
+# reachable only by password auth would otherwise be locked out on the very
+# next SSH connection once the installer writes `PasswordAuthentication no`.
+# The installer therefore either reuses an existing authorized_keys entry
+# for the current admin login user or installs the explicitly provided admin
+# public key first. Per-grant blocks (see agentzone_helper.sh) add
+# AllowUsers scoped to a single LocalPort, so agent accounts can never
+# authenticate on the admin's port and vice versa.
 # ---------------------------------------------------------------------------
+ensure_admin_key_access
 log "Hardening sshd (key-only auth, no root login)"
 # /run is tmpfs; sshd normally creates /run/sshd itself via its service's
 # ExecStartPre on every boot, but a box where sshd has never been fully

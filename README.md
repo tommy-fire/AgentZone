@@ -47,6 +47,10 @@ You'll be asked for:
 2. **Your Telegram numeric ID** — the single admin who can use the bot.
 3. **The SSH port you're currently connected on** — so the installer
    knows which port to keep open for you; it never touches this port.
+4. **Your admin SSH public key** *only if* the current admin user does not
+   already have an existing `authorized_keys` entry. The installer refuses
+   to disable password SSH logins until it has confirmed a key-based admin
+   path back in, preventing accidental lockout on a fresh password-only box.
 
 The public IP is auto-detected. If your server image does not have `curl`
 yet, the installer bootstraps it first. If auto-detection still fails, the
@@ -63,6 +67,7 @@ sudo AGENTZONE_NONINTERACTIVE=true \
   AGENTZONE_ADMIN_ID='123456789' \
   AGENTZONE_SSH_ADMIN_PORT='22' \
   AGENTZONE_SERVER_IP='203.0.113.10' \
+  AGENTZONE_ADMIN_SSH_PUBLIC_KEY='ssh-ed25519 AAAA... admin@laptop' \
   bash install.sh
 ```
 
