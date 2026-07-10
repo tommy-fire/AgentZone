@@ -152,6 +152,11 @@ def test_install_sh_installs_helper_as_root_owned_and_not_world_writable():
     assert "/usr/local/sbin/agentzone-helper" in text
 
 
+def test_install_sh_state_dir_is_traversable_for_sshd_key_lookup_but_not_listable():
+    text = _read()
+    assert 'install -d -m 0711 -o root -g root /var/lib/agentzone' in text
+
+
 def test_install_sh_sudoers_rule_is_narrow_to_helper_path_only():
     text = _read()
     idx = text.index("cat > /etc/sudoers.d/agentzone")

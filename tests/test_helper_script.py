@@ -117,6 +117,27 @@ def test_helper_enables_grant_keys_only_on_the_grant_port():
     assert "AuthorizedKeysFile $DISABLED_AUTHORIZED_KEYS_DIR/%u" in block
 
 
+def test_helper_managed_authorized_keys_are_readable_by_sshd_but_not_writable_by_users():
+    text = _read()
+    grant_start = text.index("cmd_grant() {")
+    grant_end = text.index("\n}\n", grant_start)
+    block = text[grant_start:grant_end]
+    assert 'chmod 711 "$STATE_DIR"' in block
+    assert 'install -d -m 0755 -o root -g root "$AUTHORIZED_KEYS_DIR"' in block
+    assert 'install -d -m 0755 -o root -g root "$DISABLED_AUTHORIZED_KEYS_DIR"' in block
+    assert 'chmod 0644 "$ak"' in block
+
+
+def test_helper_fails_the_grant_if_opening_the_firewall_rule_fails():
+    text = _read()
+    assert "ufw_rule_present" in text
+    start = text.index("cmd_grant() {")
+    end = text.index("\n}\n", start)
+    block = text[start:end]
+    assert 'if ! ufw_open "$port" "$grant_id"; then' in block
+    assert 'fail "failed to open firewall rule for grant port $port"' in block
+
+
 def test_helper_skips_ports_already_listening_on_the_host():
     """Regression: the helper must not hand out a port that is already
     occupied by some unrelated local service, even if AgentZone itself has

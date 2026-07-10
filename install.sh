@@ -245,7 +245,7 @@ find "$APP_DIR/app" -type f -exec chmod 0644 {} +
 chown -R "$APP_USER:$APP_USER" "$APP_DIR/logs"
 chmod 0750 "$APP_DIR/logs"
 
-install -d -m 0700 -o root -g root /var/lib/agentzone
+install -d -m 0711 -o root -g root /var/lib/agentzone
 
 log "Granting $APP_USER a narrow sudoers rule for the helper ONLY"
 cat > /etc/sudoers.d/agentzone <<EOF

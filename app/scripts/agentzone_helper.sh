@@ -164,7 +164,10 @@ load_state() {
 
 save_state() {
   mkdir -p "$STATE_DIR"
-  chmod 700 "$STATE_DIR"
+  # sshd may need to traverse $STATE_DIR to read a root-owned
+  # AuthorizedKeysFile from $AUTHORIZED_KEYS_DIR while authenticating a grant
+  # user, but the state file itself stays 0600 root-only.
+  chmod 711 "$STATE_DIR"
   GRANTS_JSON="$GRANTS_JSON" HISTORY_JSON="$HISTORY_JSON" python3 - "$STATE_FILE" <<'PYSAVE'
 import json, sys, os
 path = sys.argv[1]
@@ -349,7 +352,12 @@ sys.exit(1)
 PY
 }
 
-ufw_open(){ command -v ufw >/dev/null 2>&1 && ufw allow "$1/tcp" comment "agentzone-$2" >/dev/null 2>&1 || true; }
+ufw_rule_present(){ command -v ufw >/dev/null 2>&1 && ufw status numbered 2>/dev/null | grep -qF "$1/tcp"; }
+ufw_open(){
+  command -v ufw >/dev/null 2>&1 || return 1
+  ufw allow "$1/tcp" comment "agentzone-$2" >/dev/null 2>&1 || return 1
+  ufw_rule_present "$1"
+}
 ufw_close(){ command -v ufw >/dev/null 2>&1 && ufw delete allow "$1/tcp" >/dev/null 2>&1 || true; }
 
 # Kill every process/session owned by a user (best-effort, both signals).
@@ -558,8 +566,9 @@ cmd_grant() {
   unset password_hash
 
   local ak
-  install -d -m 0700 -o root -g root "$AUTHORIZED_KEYS_DIR"
-  install -d -m 0700 -o root -g root "$DISABLED_AUTHORIZED_KEYS_DIR"
+  chmod 711 "$STATE_DIR" 2>/dev/null || true
+  install -d -m 0755 -o root -g root "$AUTHORIZED_KEYS_DIR"
+  install -d -m 0755 -o root -g root "$DISABLED_AUTHORIZED_KEYS_DIR"
   ak="$(managed_authorized_keys_path "$user")"
   {
     echo "$MANAGED_BEGIN grant=$grant_id"
@@ -567,7 +576,7 @@ cmd_grant() {
     echo "$MANAGED_END grant=$grant_id"
   } > "$ak"
   chown root:root "$ak"
-  chmod 600 "$ak"
+  chmod 0644 "$ak"
 
   # Least privilege by default: sudo requires the account password
   # (already hashed above), never NOPASSWD. This keeps a leaked SSH key
@@ -586,7 +595,10 @@ EOF
     rollback_uncommitted_grant "$grant_id" "$user" "$port"
     fail "grant port $port did not present an SSH banner after reload (likely ssh.socket/socket activation is still intercepting ports, sshd did not bind the new port, or the port is occupied by another local service)"
   fi
-  ufw_open "$port" "$grant_id"
+  if ! ufw_open "$port" "$grant_id"; then
+    rollback_uncommitted_grant "$grant_id" "$user" "$port"
+    fail "failed to open firewall rule for grant port $port"
+  fi
 
   local expires=""
   if [[ -n "$ttl" ]]; then
