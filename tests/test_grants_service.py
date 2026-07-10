@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from bot.services import grants
+from agentzone import grants
 
 VALID_PUBKEY = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHIyZkw9h6qIVs2qj9vafvaOWCzsYMd05DV1jT4ca6Sw unit-test-key"
 
@@ -99,7 +99,7 @@ def test_parse_status_multiple_grants():
 
 @pytest.mark.asyncio
 async def test_helper_missing_raises_grant_error(monkeypatch):
-    from bot.config import settings
+    from agentzone.config import settings
     monkeypatch.setattr(settings, "AGENTZONE_HELPER_PATH", "/no/such/helper")
     with pytest.raises(grants.GrantError):
         await grants.list_grants()
@@ -114,13 +114,15 @@ async def test_run_helper_does_not_check_local_exec_bit_when_using_sudo(monkeypa
     `sudo -n` can run it fine. _run_helper must only require the helper
     to exist and sudo to be available -- not that the current process can
     exec it directly -- whenever it is not already root."""
-    from bot.config import settings
+    from agentzone.config import settings
 
     fake_helper = tmp_path / "helper"
     fake_helper.write_text("#!/bin/sh\necho ok=true\n")
     fake_helper.chmod(0o750)  # not executable by "others" (simulates real deploy)
+    from agentzone import helper
+
     monkeypatch.setattr(settings, "AGENTZONE_HELPER_PATH", str(fake_helper))
-    monkeypatch.setattr(grants.os, "geteuid", lambda: 1000)  # simulate unprivileged bot user
+    monkeypatch.setattr(helper.os, "geteuid", lambda: 1000)  # simulate unprivileged bot user
 
     code, data, raw = await grants._run_helper("status")
     # It must have attempted to invoke via sudo rather than failing on the

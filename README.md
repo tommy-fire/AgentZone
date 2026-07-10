@@ -100,10 +100,10 @@ exactly what is (and isn't) cleaned up, and why.
 ## Repository layout
 
 ```
-app/bot/            aiogram bot: handlers, keyboards, config
-app/bot/services/   grants.py (helper wrapper), expiry_monitor.py
+app/agentzone/      Python package: config, handlers, messages, helper bridge
 app/scripts/        agentzone_helper.sh — the only privileged code
 install.sh          one-command installer
+scripts/            repo hygiene helpers (PII guard, git hooks)
 tests/              unit tests + static checks on install.sh / helper.sh
 ```
 
@@ -111,9 +111,12 @@ tests/              unit tests + static checks on install.sh / helper.sh
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt -r requirements-dev.txt
+pip install -e .[dev]
 pytest
 ```
+
+If you prefer the old-style requirements workflow, `requirements.txt` and
+`requirements-dev.txt` are still kept in sync.
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 

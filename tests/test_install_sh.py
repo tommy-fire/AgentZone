@@ -170,6 +170,15 @@ def test_install_sh_bot_service_has_no_new_privileges_disabled_reasonably():
     assert f"User=$APP_USER" in block
 
 
+def test_install_sh_bot_service_runs_the_packaged_agentzone_module():
+    text = _read()
+    idx = text.index("agentzone-bot.service <<EOF")
+    end = text.index("\nEOF\n", idx)
+    block = text[idx:end]
+    assert "Environment=PYTHONPATH=$APP_DIR/app" in block
+    assert "ExecStart=$APP_DIR/venv/bin/python -m agentzone.main" in block
+
+
 def test_install_sh_installs_rsync():
     """Regression: install.sh uses `rsync` to deploy app code, but rsync
     is not preinstalled on every minimal cloud/server image. Missing it

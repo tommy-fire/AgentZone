@@ -339,7 +339,7 @@ UMask=0007
 WorkingDirectory=$APP_DIR/app
 Environment=PYTHONPATH=$APP_DIR/app
 EnvironmentFile=$APP_DIR/config/.env
-ExecStart=$APP_DIR/venv/bin/python -m bot.main
+ExecStart=$APP_DIR/venv/bin/python -m agentzone.main
 Restart=always
 RestartSec=5
 PrivateTmp=true

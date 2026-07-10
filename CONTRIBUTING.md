@@ -18,7 +18,7 @@ as a pre-commit hook with `bash scripts/install-git-hooks.sh`).
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt -r requirements-dev.txt
+pip install -e .[dev]
 pytest
 ```
 
