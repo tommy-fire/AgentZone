@@ -190,21 +190,28 @@ def test_install_sh_bot_service_runs_the_packaged_agentzone_module():
     assert "ExecStart=$APP_DIR/venv/bin/python -m agentzone.main" in block
 
 
-def test_install_sh_bot_service_has_extra_filesystem_and_namespace_hardening():
+def test_install_sh_bot_service_keeps_compatible_systemd_sandboxing_without_breaking_the_helper():
+    """Live regression: ProtectSystem/ProtectHome apply to the bot's mount
+    namespace and therefore also constrain the sudoed helper process.
+    Because the helper must legitimately modify /etc, /var/lib, /home, UFW,
+    and login-trace files, filesystem lockdown here broke grant creation
+    with errors like '/var/lib/agentzone/grants.lock: Read-only file system'.
+    Keep lightweight namespace/device hardening, but do not enable the
+    incompatible filesystem lockdown directives in this service unit."""
     text = _read()
     idx = text.index("agentzone-bot.service <<EOF")
     end = text.index("\nEOF\n", idx)
     block = text[idx:end]
     for required in (
         "PrivateDevices=true",
-        "ProtectSystem=strict",
-        "ProtectHome=true",
         "ProtectClock=true",
         "ProtectHostname=true",
         "RestrictNamespaces=true",
-        "ReadWritePaths=$APP_DIR/logs",
     ):
         assert required in block
+    assert "ProtectSystem=strict" not in block
+    assert "ProtectHome=true" not in block
+    assert "ReadWritePaths=$APP_DIR/logs" not in block
 
 
 def test_install_sh_installs_rsync():

@@ -345,8 +345,11 @@ Restart=always
 RestartSec=5
 PrivateTmp=true
 PrivateDevices=true
-ProtectSystem=strict
-ProtectHome=true
+# The bot itself is unprivileged, but it legitimately escalates to the
+# root-owned helper via sudo so that helper can modify /etc, /var/lib,
+# /home, UFW rules, user accounts, and login traces. Filesystem lockdown
+# directives like ProtectSystem/ProtectHome would also constrain the sudoed
+# helper inside the same mount namespace and break grant/revoke operations.
 ProtectClock=true
 ProtectHostname=true
 ProtectKernelTunables=true
@@ -357,7 +360,6 @@ RestrictSUIDSGID=true
 LockPersonality=true
 SystemCallArchitectures=native
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
-ReadWritePaths=$APP_DIR/logs
 NoNewPrivileges=false
 
 [Install]

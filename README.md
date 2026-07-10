@@ -74,7 +74,7 @@ sudo AGENTZONE_NONINTERACTIVE=true \
 The installer then:
 
 - Installs the bot as `agentzone-bot.service` (systemd, auto-restart,
-  filesystem and namespace sandboxing enabled).
+  with compatible systemd hardening that does not break the privileged helper path).
 - Installs `agentzone-helper` as a **root-owned**, narrowly-scoped script
   the bot can invoke via a single sudoers rule — the bot process itself
   never runs as root.
