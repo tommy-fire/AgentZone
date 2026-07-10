@@ -23,7 +23,7 @@ AgentZone's answer to each of those:
 | Concern | Mechanism |
 |---|---|
 | Shared/forgotten credentials | Every grant creates its own Linux user, its own SSH key, its own password. |
-| Open-ended access | TTL in minutes (or "until revoked"), enforced three independent ways — see [Security](SECURITY.md). |
+| Open-ended access | TTL in minutes (or "until revoked"), enforced by a minute-level timer + bot monitor, plus a coarse day-granularity kernel fallback (`chage -E`) — see [Security](SECURITY.md). |
 | Discoverability | No domain, no web server, no webhook. The bot only uses Telegram long polling. The server IP is sent to the admin in a private message, never logged or exposed. |
 | Port scanning | Every grant gets its **own SSH port**, opened only while the grant is active. Nothing listens on it, and nothing references it in `sshd_config`, otherwise. |
 | Leaked key ⇒ root | SSH is public-key only; the grant's password is a **local-only** secret used solely for `sudo`, never a valid network login method. |

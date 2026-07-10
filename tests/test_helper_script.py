@@ -75,6 +75,24 @@ def test_helper_sets_kernel_account_expiry():
     assert "chage -E" in text
 
 
+def test_helper_sets_kernel_expiry_to_day_after_exact_deadline():
+    """Live regression: `chage -E` is day-granularity and on Ubuntu/Debian
+    expires the account at the START of the configured day. Using the exact
+    TTL's calendar date therefore locked a same-day 4h grant immediately.
+    The helper must shift the kernel fallback to the following day, while
+    the timer/bot still handle exact minute-level revocation."""
+    text = _read()
+    assert "kernel_expire_date_from_ttl_minutes" in text
+    helper_start = text.index("kernel_expire_date_from_ttl_minutes(){") if "kernel_expire_date_from_ttl_minutes(){" in text else text.index("kernel_expire_date_from_ttl_minutes() {")
+    helper_end = text.index("\n}\n", helper_start)
+    helper_block = text[helper_start:helper_end]
+    assert '+${ttl} minutes +1 day' in helper_block
+    grant_start = text.index("cmd_grant() {")
+    grant_end = text.index("\n}\n", grant_start)
+    grant_block = text[grant_start:grant_end]
+    assert 'chage -E "$(kernel_expire_date_from_ttl_minutes "$ttl")" "$user"' in grant_block
+
+
 def test_helper_one_port_per_grant():
     text = _read()
     assert "allocate_port" in text

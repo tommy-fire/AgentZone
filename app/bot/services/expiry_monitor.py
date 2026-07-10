@@ -1,10 +1,11 @@
 """Background safety net for grant expiry.
 
 The primary expiry mechanism is a systemd timer that calls
-``agentzone-helper expire-check`` once a minute (see install.sh) plus the
-kernel-enforced ``chage -E`` account expiry set at grant time. This loop is
-a THIRD, independent check from inside the bot process itself, so a single
-misconfigured timer can never leave an expired grant active unnoticed.
+``agentzone-helper expire-check`` once a minute, plus this in-process bot
+loop. The helper also sets a coarse day-granularity ``chage -E`` account
+expiry as a fallback if both timer-based checks fail. This loop is thus a
+THIRD, independent safety net, so a single misconfigured timer can never
+leave an expired grant active unnoticed.
 """
 from __future__ import annotations
 

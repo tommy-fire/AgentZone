@@ -23,8 +23,13 @@
 #   having a shell on the box already, and a brute-force campaign against
 #   the port is a no-op against key auth.
 # - `chage -E` (kernel-enforced account expiry) is set in addition to the
-#   systemd timer that calls `revoke`. If the bot/timer ever fails to run,
-#   the OS itself locks the account out at the deadline — defense in depth.
+#   systemd timer that calls `revoke`, but Linux account expiry is only
+#   day-granularity: on Ubuntu/Debian, the account is considered expired at
+#   the START of the configured day. AgentZone therefore sets the kernel
+#   expiry to the day AFTER the exact TTL deadline so it never locks a grant
+#   out prematurely; the timer + bot monitor still enforce the precise
+#   minute-level expiry, while `chage` remains a coarse fallback if they both
+#   fail.
 # - Revocation removes: the sshd Match block, the firewall rule, the
 #   sudoers file, all active sessions (`pkill -KILL -u`), the Linux user
 #   and its home directory, and every login trace for that user in
@@ -76,6 +81,18 @@ require_root(){
 }
 now_iso(){ date -u +%Y-%m-%dT%H:%M:%SZ; }
 now_epoch(){ date -u +%s; }
+
+# Linux account expiry (`chage -E`) is day-granularity and on Ubuntu/Debian
+# the account becomes unusable at the START of the configured day. For an
+# exact TTL like "+240 minutes", setting that same calendar date would lock
+# the account immediately if the deadline is later today. So we program the
+# kernel fallback to the DAY AFTER the intended deadline: this is never
+# earlier than the real expiry, while the systemd timer + bot monitor remain
+# responsible for exact minute-level revocation.
+kernel_expire_date_from_ttl_minutes(){
+  local ttl="$1"
+  date -u -d "+${ttl} minutes +1 day" +%Y-%m-%d
+}
 
 # Serialize every command that reads-modifies-writes the state file.
 # Without this, the once-a-minute expiry timer (cmd_expire_check) racing
@@ -562,10 +579,12 @@ EOF
   local expires=""
   if [[ -n "$ttl" ]]; then
     expires="$(date -u -d "+${ttl} minutes" +%Y-%m-%dT%H:%M:%SZ)"
-    # Kernel-enforced account expiry as defense in depth: even if the
-    # systemd timer that calls `revoke` never runs, the account itself
-    # becomes unusable at this date (day granularity).
-    chage -E "$(date -u -d "+${ttl} minutes" +%Y-%m-%d)" "$user" 2>/dev/null || true
+    # Kernel-enforced account expiry as defense in depth. `chage -E` is only
+    # day-granularity and expires the account at the START of the configured
+    # day, so we intentionally set it to the day AFTER the intended exact
+    # deadline. This avoids premature lockout; the systemd timer + bot
+    # monitor still revoke at the real minute-level expiry.
+    chage -E "$(kernel_expire_date_from_ttl_minutes "$ttl")" "$user" 2>/dev/null || true
   else
     chage -E -1 "$user" 2>/dev/null || true
   fi

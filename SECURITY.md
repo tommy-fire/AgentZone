@@ -21,9 +21,12 @@ in `app/scripts/agentzone_helper.sh` for the exact mechanisms; summary:
   root — the grant's password is still required for `sudo`.
 - **Defense in depth on expiry.** A grant's TTL is enforced three separate
   ways: a systemd timer calling `agentzone-helper expire-check` every
-  minute, the kernel's own `chage -E` account-expiry date, and an
-  in-process monitor loop inside the bot. Any one of the three failing
-  does not leave the grant active.
+  minute, an in-process monitor loop inside the bot, and the kernel's own
+  `chage -E` account-expiry date as a coarse day-granularity fallback.
+  (`chage` on Ubuntu/Debian expires the account at the start of the chosen
+  day, so AgentZone deliberately sets it to the day *after* the exact TTL
+  deadline to avoid locking a same-day grant out early.) Any one of the
+  three timer/monitor layers failing does not leave the grant active.
 - **No public attack surface beyond SSH.** The bot uses Telegram long
   polling only — no webhook, no HTTP server, no web panel. The server's
   public IP is only ever sent to the admin in a private Telegram message.
