@@ -237,9 +237,12 @@ def test_install_sh_installs_rsync():
     assert idx < rsync_call_idx
 
 
-def test_install_sh_installs_passwd_and_procps_for_the_helper():
+def test_install_sh_installs_passwd_procps_and_iptables_for_the_helper_and_ufw():
     """passwd provides chpasswd/chage/useradd/userdel, procps provides
-    pkill -- both used by agentzone_helper.sh when granting/revoking."""
+    pkill, and iptables is still required by UFW on some minimal Ubuntu
+    images. Without iptables present, grant creation can fail with
+    "Couldn't determine iptables version" when the helper tries to open a
+    per-grant firewall rule."""
     text = _read()
     system_packages_idx = text.index('log "Installing system packages"')
     idx = text.index("apt-get install -y -qq python3", system_packages_idx)
@@ -247,6 +250,7 @@ def test_install_sh_installs_passwd_and_procps_for_the_helper():
     line = text[idx:end]
     assert "passwd" in line
     assert "procps" in line
+    assert "iptables" in line
 
 
 def test_install_sh_fails_fast_with_clear_message_if_a_required_command_is_missing():
@@ -257,7 +261,7 @@ def test_install_sh_fails_fast_with_clear_message_if_a_required_command_is_missi
     idx = text.index("Fail fast, with a clear message")
     end = text.index("\ndone\n", idx)
     block = text[idx:end]
-    for required in ("rsync", "useradd", "chpasswd", "chage", "pkill", "ssh-keygen", "sshd", "ufw"):
+    for required in ("rsync", "useradd", "chpasswd", "chage", "pkill", "ssh-keygen", "sshd", "ufw", "iptables"):
         assert required in block, f"{required} is not in the post-install command check"
 
 

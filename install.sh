@@ -194,7 +194,7 @@ apt-get update -qq
 #   sessions. Normally part of Ubuntu's minimal base install already, but
 #   listed explicitly so a stripped-down/custom image cannot silently
 #   break grant/revoke.
-apt-get install -y -qq python3 python3-venv python3-pip openssh-server ufw sudo curl util-linux openssl rsync passwd procps >/dev/null
+apt-get install -y -qq python3 python3-venv python3-pip openssh-server ufw sudo curl util-linux openssl rsync passwd procps iptables >/dev/null
 
 # Some minimal cloud images ship the openssh-server package without ever
 # enabling/starting its service. Make sure it is actually running before
@@ -205,7 +205,7 @@ systemctl enable --now ssh.service 2>/dev/null || systemctl enable --now sshd.se
 # missing after the apt-get install above (e.g. a custom/minimal image
 # with restricted repositories) — instead of a confusing "No such file
 # or directory" from whatever line happens to use it first.
-for bin in rsync python3 useradd userdel chpasswd chage pkill ssh-keygen sshd ufw openssl visudo getent; do
+for bin in rsync python3 useradd userdel chpasswd chage pkill ssh-keygen sshd ufw iptables openssl visudo getent; do
   command -v "$bin" >/dev/null 2>&1 || fail "Required command '$bin' is still missing after package installation — check your APT sources/network and re-run."
 done
 
