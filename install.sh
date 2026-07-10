@@ -360,7 +360,9 @@ RestrictNamespaces=true
 RestrictSUIDSGID=true
 LockPersonality=true
 SystemCallArchitectures=native
-RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+# The bot itself talks only over AF_UNIX/AF_INET/AF_INET6, but the sudoed
+# helper uses UFW/iptables which speak to the kernel over AF_NETLINK.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 NoNewPrivileges=false
 
 [Install]

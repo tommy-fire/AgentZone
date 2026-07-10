@@ -195,6 +195,7 @@ def test_install_sh_bot_service_runs_the_packaged_agentzone_module():
     block = text[idx:end]
     assert "Environment=PYTHONPATH=$APP_DIR/app" in block
     assert "ExecStart=$APP_DIR/venv/bin/python -m agentzone.main" in block
+    assert "RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK" in block
 
 
 def test_install_sh_bot_service_keeps_compatible_systemd_sandboxing_without_breaking_the_helper():
@@ -214,6 +215,7 @@ def test_install_sh_bot_service_keeps_compatible_systemd_sandboxing_without_brea
         "ProtectClock=true",
         "ProtectHostname=true",
         "RestrictNamespaces=true",
+        "RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK",
     ):
         assert required in block
     assert "ProtectSystem=strict" not in block
