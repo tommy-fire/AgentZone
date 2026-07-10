@@ -100,6 +100,23 @@ def test_helper_one_port_per_grant():
     assert "AllowUsers" in text
 
 
+def test_helper_enables_grant_keys_only_on_the_grant_port():
+    """Critical security invariant: an agent account must not be able to
+    reuse the same key on the normal admin SSH port. The helper therefore
+    uses a root-owned AuthorizedKeysFile on the grant port and a separate
+    Match User rule that disables the user's home authorized_keys on every
+    other port."""
+    text = _read()
+    start = text.index("write_grant_sshd_block(){")
+    end = text.index("\n}\n", start)
+    block = text[start:end]
+    localport_idx = block.index("Match LocalPort")
+    user_idx = block.index("Match User")
+    assert localport_idx < user_idx
+    assert "AuthorizedKeysFile $key_path" in block
+    assert "AuthorizedKeysFile $DISABLED_AUTHORIZED_KEYS_DIR/%u" in block
+
+
 def test_helper_skips_ports_already_listening_on_the_host():
     """Regression: the helper must not hand out a port that is already
     occupied by some unrelated local service, even if AgentZone itself has

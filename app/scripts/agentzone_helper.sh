@@ -9,12 +9,17 @@
 # Security model
 # ---------------
 # - Every grant gets its OWN sshd port, opened in the firewall and bound to
-#   exactly one Linux user via `Match LocalPort <port>` + `AllowUsers`.
-#   While no grant is active for a port, nothing listens there and nothing
-#   in sshd_config references it — there is nothing for a port scanner to
-#   find. This is stronger than one shared "agent" port with rotating users:
-#   a leaked/rotated key on a shared port would still let an old holder
-#   probe the port even after "revocation" broke only authentication, not
+#   exactly one Linux user via `Match LocalPort <port>` + `AllowUsers`, with
+#   that user's authorized key stored in a ROOT-OWNED path that is enabled
+#   only for the grant's port. A second `Match User <name>` block forces all
+#   other ports (including the admin SSH port) to ignore the user's home
+#   `~/.ssh/authorized_keys`, so an agent account cannot silently authenticate
+#   on the admin port even if it later writes extra keys into its own home.
+#   While no grant is active for a port, nothing listens there and nothing in
+#   sshd_config references it — there is nothing for a port scanner to find.
+#   This is stronger than one shared "agent" port with rotating users: a
+#   leaked/rotated key on a shared port would still let an old holder probe
+#   the port even after "revocation" broke only authentication, not
 #   reachability.
 # - Public-key authentication ONLY. PasswordAuthentication is disabled
 #   globally in install.sh's baseline hardening; the per-grant password
@@ -54,6 +59,8 @@ STATE_FILE="$STATE_DIR/grants.json"
 STATE_LOCK_FILE="$STATE_DIR/grants.lock"
 SUDOERS_DIR="${AGENTZONE_SUDOERS_DIR:-/etc/sudoers.d}"
 SSHD_DIR="${AGENTZONE_SSHD_DIR:-/etc/ssh/sshd_config.d}"
+AUTHORIZED_KEYS_DIR="${AGENTZONE_AUTHORIZED_KEYS_DIR:-$STATE_DIR/authorized_keys}"
+DISABLED_AUTHORIZED_KEYS_DIR="${AGENTZONE_DISABLED_AUTHORIZED_KEYS_DIR:-$STATE_DIR/authorized_keys-disabled}"
 MANAGED_BEGIN="# AGENTZONE_BEGIN"
 MANAGED_END="# AGENTZONE_END"
 STATE_SCHEMA_VERSION=1
@@ -139,6 +146,7 @@ new_grant_id(){
 
 sudoers_path_for_grant(){ printf '%s/agentzone-grant-%s' "$SUDOERS_DIR" "$1"; }
 sshd_path_for_grant(){ printf '%s/50-agentzone-grant-%s.conf' "$SSHD_DIR" "$1"; }
+managed_authorized_keys_path(){ printf '%s/%s' "$AUTHORIZED_KEYS_DIR" "$1"; }
 
 # ---------------------------------------------------------------------------
 # State (JSON, atomic writes, 0600 root-only)
@@ -395,17 +403,21 @@ PYLL
 # sshd: one Match block per grant, binding LocalPort -> AllowUsers.
 # ---------------------------------------------------------------------------
 write_grant_sshd_block(){
-  local grant_id="$1" user="$2" port="$3" path
+  local grant_id="$1" user="$2" port="$3" path key_path
   path="$(sshd_path_for_grant "$grant_id")"
+  key_path="$(managed_authorized_keys_path "$user")"
   mkdir -p "$SSHD_DIR"
   cat > "$path" <<EOF
 $MANAGED_BEGIN grant=$grant_id
 Port $port
-Match LocalPort $port
+Match LocalPort $port User $user
     AllowUsers $user
+    AuthorizedKeysFile $key_path
     PasswordAuthentication no
     PubkeyAuthentication yes
     AuthenticationMethods publickey
+Match User $user
+    AuthorizedKeysFile $DISABLED_AUTHORIZED_KEYS_DIR/%u
 Match All
 $MANAGED_END grant=$grant_id
 EOF
@@ -431,7 +443,7 @@ rollback_uncommitted_grant(){
   local grant_id="$1" user="$2" port="$3"
   remove_grant_sshd_block "$grant_id"
   [[ -n "$port" ]] && ufw_close "$port" "$grant_id"
-  rm -f "$(sudoers_path_for_grant "$grant_id")"
+  rm -f "$(sudoers_path_for_grant "$grant_id")" "$(managed_authorized_keys_path "$user")"
   kill_user_sessions "$user"
   if id "$user" >/dev/null 2>&1; then
     userdel -r "$user" >/dev/null 2>&1 || {
@@ -458,7 +470,7 @@ revoke_one_grant(){
 
   remove_grant_sshd_block "$grant_id"
   [[ -n "$port" ]] && ufw_close "$port" "$grant_id"
-  rm -f "$(sudoers_path_for_grant "$grant_id")"
+  rm -f "$(sudoers_path_for_grant "$grant_id")" "$(managed_authorized_keys_path "$user")"
 
   kill_user_sessions "$user"
   if id "$user" >/dev/null 2>&1; then
@@ -545,16 +557,16 @@ cmd_grant() {
   echo "${user}:${password_hash}" | chpasswd -e
   unset password_hash
 
-  local home ak
-  home="$(getent passwd "$user" | cut -d: -f6)"
-  install -d -m 700 -o "$user" -g "$user" "$home/.ssh"
-  ak="$home/.ssh/authorized_keys"
+  local ak
+  install -d -m 0700 -o root -g root "$AUTHORIZED_KEYS_DIR"
+  install -d -m 0700 -o root -g root "$DISABLED_AUTHORIZED_KEYS_DIR"
+  ak="$(managed_authorized_keys_path "$user")"
   {
     echo "$MANAGED_BEGIN grant=$grant_id"
     echo "$pub"
     echo "$MANAGED_END grant=$grant_id"
   } > "$ak"
-  chown "$user:$user" "$ak"
+  chown root:root "$ak"
   chmod 600 "$ak"
 
   # Least privilege by default: sudo requires the account password

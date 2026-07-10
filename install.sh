@@ -264,11 +264,12 @@ visudo -cf /etc/sudoers.d/agentzone >/dev/null
 # The installer therefore either reuses an existing authorized_keys entry
 # for the current admin login user or installs the explicitly provided admin
 # public key first. Per-grant blocks (see agentzone_helper.sh) add
-# AllowUsers scoped to a single LocalPort, so agent accounts can never
-# authenticate on the admin's port and vice versa.
+# The helper stores grant keys in a root-owned AuthorizedKeysFile enabled
+# only on each grant port, so agent accounts cannot authenticate on the
+# admin SSH port even if they write their own ~/.ssh/authorized_keys later.
 # ---------------------------------------------------------------------------
 ensure_admin_key_access
-log "Hardening sshd (key-only auth, no root login)"
+log "Hardening sshd (password auth disabled; root password login disabled)"
 # /run is tmpfs; sshd normally creates /run/sshd itself via its service's
 # ExecStartPre on every boot, but a box where sshd has never been fully
 # started yet (fresh install, or a provider image that only ships the
@@ -284,7 +285,7 @@ systemd-tmpfiles --create /etc/tmpfiles.d/agentzone-sshd.conf >/dev/null 2>&1 ||
 
 mkdir -p /etc/ssh/sshd_config.d
 cat > /etc/ssh/sshd_config.d/00-agentzone-hardening.conf <<'EOF'
-PermitRootLogin no
+PermitRootLogin prohibit-password
 PasswordAuthentication no
 KbdInteractiveAuthentication no
 PubkeyAuthentication yes

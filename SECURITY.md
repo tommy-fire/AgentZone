@@ -7,16 +7,21 @@ tightly-scoped SSH access to a server, and to guarantee that access is
 fully and verifiably gone the moment it is revoked. See the header comment
 in `app/scripts/agentzone_helper.sh` for the exact mechanisms; summary:
 
-- **Public-key SSH only.** `PasswordAuthentication no` is set globally by
-  `install.sh`. The password an admin sets for a grant is a local
-  credential used only for `sudo` on the box — it is never a valid SSH
-  login method, so it cannot be brute-forced over the network.
+- **Public-key SSH only for grants; password SSH disabled globally.**
+  `PasswordAuthentication no` is set globally by `install.sh`, and root
+  password login is disabled as well (`PermitRootLogin prohibit-password`).
+  The password an admin sets for a grant is a local credential used only
+  for `sudo` on the box — it is never a valid SSH login method, so it
+  cannot be brute-forced over the network.
 - **One port per grant.** Every grant gets its own TCP port, opened in the
   firewall and bound to exactly one Linux user via sshd's
-  `Match LocalPort <port>` + `AllowUsers`. No port is listed in sshd
-  config, and no port is open in the firewall, unless a grant for it is
-  currently active. There is nothing for a port scan to find outside an
-  active grant's window.
+  `Match LocalPort <port>` + `AllowUsers`. The grant's public key is stored
+  in a root-owned `AuthorizedKeysFile` that is enabled only for that grant
+  port; a separate `Match User` rule forces all other ports (including the
+  normal admin SSH port) to ignore the user's home `~/.ssh/authorized_keys`.
+  No port is listed in sshd config, and no port is open in the firewall,
+  unless a grant for it is currently active. There is nothing for a port
+  scan to find outside an active grant's window.
 - **No NOPASSWD sudo.** A leaked SSH key alone is never enough to reach
   root — the grant's password is still required for `sudo`.
 - **Defense in depth on expiry.** A grant's TTL is enforced three separate

@@ -118,7 +118,13 @@ def test_install_sh_never_asks_for_a_domain():
 def test_install_sh_disables_password_authentication_globally():
     text = _read()
     assert "PasswordAuthentication no" in text
-    assert "PermitRootLogin no" in text
+    assert "PermitRootLogin prohibit-password" in text
+
+
+def test_install_sh_disables_root_password_login_without_locking_out_key_based_root_admins():
+    text = _read()
+    assert "PermitRootLogin prohibit-password" in text
+    assert "PermitRootLogin no" not in text
 
 
 def test_install_sh_does_not_open_any_web_port():

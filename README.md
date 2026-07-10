@@ -25,7 +25,7 @@ AgentZone's answer to each of those:
 | Shared/forgotten credentials | Every grant creates its own Linux user, its own SSH key, its own password. |
 | Open-ended access | TTL in minutes (or "until revoked"), enforced by a minute-level timer + bot monitor, plus a coarse day-granularity kernel fallback (`chage -E`) — see [Security](SECURITY.md). |
 | Discoverability | No domain, no web server, no webhook. The bot only uses Telegram long polling. The server IP is sent to the admin in a private message, never logged or exposed. |
-| Port scanning | Every grant gets its **own SSH port**, opened only while the grant is active. Nothing listens on it, and nothing references it in `sshd_config`, otherwise. |
+| Port scanning / admin-port crossover | Every grant gets its **own SSH port**, opened only while the grant is active. The grant key is enabled only on that port; the same agent account cannot authenticate on the normal admin SSH port. |
 | Leaked key ⇒ root | SSH is public-key only; the grant's password is a **local-only** secret used solely for `sudo`, never a valid network login method. |
 
 Full design rationale: [`SECURITY.md`](SECURITY.md).
@@ -77,7 +77,7 @@ The installer then:
 - Installs `agentzone-helper` as a **root-owned**, narrowly-scoped script
   the bot can invoke via a single sudoers rule — the bot process itself
   never runs as root.
-- Hardens sshd (key-only auth, no root login).
+- Hardens sshd (key-only SSH, password auth disabled globally, root password login disabled).
 - Enables UFW, opening only your current admin SSH port.
 - Installs a systemd timer that sweeps expired grants every minute.
 
